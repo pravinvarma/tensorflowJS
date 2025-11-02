@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
+</head>
+<body>
+<script>
+    window.addEventListener('load', async () => {
+        const model = tf.sequential();
+        model.add(tf.layers.dense({units: 1, inputShape: [1]}));
+        model.compile({loss: 'meanSquaredError', optimizer: 'sgd'});
+
+        const xs = tf.tensor2d([1, 2, 3, 4], [4, 1]);
+        const ys = tf.tensor2d([3, 5, 7, 9], [4, 1]);
+
+        tfvis.show.modelSummary({name: 'Model Summary'}, model);
+
+        await model.fit(xs, ys, {
+            epochs: 200,
+            callbacks: tfvis.show.fitCallbacks(
+                {name: 'Training Performance'},
+                ['loss'],
+                {callbacks: ['onEpochEnd']}
+            )
+        });
+
+        console.log("✅ Training done!");
+
+        const preds = model.predict(xs);
+        const predsData = preds.dataSync();
+        const xsData = xs.arraySync();
+        const ysData = ys.arraySync();
+
+        const points = xsData.map((x, i) => ({x, y: ysData[i]}));
+        const predictions = xsData.map((x, i) => ({x, y: predsData[i]}));
+        console.log(points, predictions);
+
+        tfvis.render.scatterplot(
+            {name: 'Training Data vs Predictions'},
+            {values: [points, predictions], series: ['original', 'predicted']},
+            {xLabel: 'x', yLabel: 'y', height: 300}
+        );
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TensorFlow.js Hello World</title>
+    <!-- Load TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
+</head>
+<body>
+<h1>sin(x)</h1>
+<p>Check the browser console for output.</p>
+
+<script>
+    const model = tf.sequential();
+    model.add(tf.layers.dense({units: 8, activation: 'tanh', inputShape: [1]}));
+    model.add(tf.layers.dense({units: 10, activation: 'tanh', inputShape: [1]}));
+    model.add(tf.layers.dense({units: 1}));
+    model.compile({loss: 'meanSquaredError', optimizer: 'adam'});
+    const xs = tf.linspace(-Math.PI * 2, Math.PI * 2, 100).reshape([100, 1]);
+    const ys = xs.sin();
+
+    async function train() {
+        const xData = xs.arraySync();
+        const yData = ys.arraySync();
+        console.log(xData, yData);
+        const points = xData.map((x, i) => ({x, y: yData[i]}));
+        const predictions = xData.map((x, i) => ({x, y: yData[i]}));
+        console.log(points, predictions);
+        tfvis.render.scatterplot(
+            {name: 'Training Data vs Predictions'},
+            {values: [points, predictions], series: ['original', 'predicted']},
+            {xLabel: 'x', yLabel: 'sin(x)', height: 300}
+        );
+        await model.fit(xs, ys, {epochs: 1000, callbacks: {onEpochEnd: (epoch, logs) => console.log(`Epoch ${epoch}: loss = ${logs.loss}`)}});
+        console.log("✅ Training complete!");
+        const output = model.predict(tf.tensor2d([5], [1, 1]));
+        output.print();
+    }
+    window.addEventListener('load', train)
+</script>
+</body>
+</html>

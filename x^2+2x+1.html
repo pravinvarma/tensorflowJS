@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TensorFlow.js Hello World</title>
+    <!-- Load TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
+</head>
+<body>
+<h1>x^2+2x+1</h1>
+<p>Check the browser console for output.</p>
+
+<script>
+//x^2+2x+1 = y
+    // Step 4: Create a model
+    const model = tf.sequential();
+    model.add(tf.layers.dense({units: 8, activation: 'relu', inputShape: [1]}));
+    model.add(tf.layers.dense({units: 1}));
+    model.compile({loss: 'meanSquaredError', optimizer: 'adam'});
+    const xs = tf.tensor2d([1, 2, 3, 4,5,6,7,8,9], [9, 1]);
+    const ys = xs.square().add(xs.mul(2)).add(1);
+
+    async function train() {
+        const xData = xs.arraySync();
+        const yData = ys.arraySync();
+        console.log(xData,yData);
+        const points = xData.map((x, i) => ({x, y: yData[i]}));
+        const predictions = xData.map((x, i) => ({x, y: yData[i]}));
+        tfvis.render.scatterplot(
+            {name: 'Training Data vs Predictions'},
+            {values: [points, predictions], series: ['original', 'predicted']},
+            {xLabel: 'x', yLabel: 'y', height: 300}
+        );
+        await model.fit(xs, ys, {epochs: 1000, callbacks: {onEpochEnd: (epoch, logs) => console.log(`Epoch ${epoch}: loss = ${logs.loss}`)}});
+        console.log("✅ Training complete!");
+        const output = model.predict(tf.tensor2d([5], [1, 1]));
+        output.print();
+    }
+    window.addEventListener('load', train)
+</script>
+</body>
+</html>

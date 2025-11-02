@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>MNIST Classifier - TensorFlow.js (Working)</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis@latest"></script>
+</head>
+<body>
+<h2>🧠 TensorFlow.js — MNIST Digit Classifier</h2>
+<button id="train">Train Model</button>
+<button id="predict">Predict My Drawing</button>
+<button id="clear">Clear Canvas</button>
+<p id="status">Status: Idle</p>
+<canvas id="canvas" width="280" height="280" style="border:1px solid #000;"></canvas>
+<p id="output"></p>
+
+<script>
+    // === DRAWING ===
+    const drawCanvas = document.getElementById('canvas');
+    const drawCtx = drawCanvas.getContext('2d');
+
+    // Fill with white background
+    drawCtx.fillStyle = 'white';
+    drawCtx.fillRect(0, 0, drawCanvas.width, drawCanvas.height);
+
+    drawCtx.lineWidth = 15;
+    drawCtx.lineCap = 'round';
+    drawCtx.strokeStyle = 'black';
+    let drawing = false;
+
+    drawCanvas.addEventListener('mousedown', () => { drawing = true; drawCtx.beginPath(); });
+    drawCanvas.addEventListener('mouseup', () => drawing = false);
+    drawCanvas.addEventListener('mousemove', e => {
+        if (!drawing) return;
+        drawCtx.lineTo(e.offsetX, e.offsetY);
+        drawCtx.stroke();
+        drawCtx.beginPath();
+        drawCtx.moveTo(e.offsetX, e.offsetY);
+    });
+    document.getElementById('clear').addEventListener('click', () => {
+        drawCtx.fillStyle = 'white';
+        drawCtx.fillRect(0, 0, drawCanvas.width, drawCanvas.height);
+    });
+
+    // === MODEL ===
+    const model = tf.sequential();
+    model.add(tf.layers.conv2d({inputShape: [28, 28, 1], filters: 8, kernelSize: 3, activation: 'relu'}));
+    model.add(tf.layers.maxPooling2d({poolSize: 2}));
+    model.add(tf.layers.flatten());
+    model.add(tf.layers.dense({units: 10, activation: 'softmax'}));
+    model.compile({optimizer: 'adam', loss: 'categoricalCrossentropy', metrics: ['accuracy']});
+
+    // === DATA LOADING (via sprite files) ===
+    async function loadMnistData() {
+        const MNIST_IMAGES_SPRITE_PATH = 'https://storage.googleapis.com/learnjs-data/model-builder/mnist_images.png';
+        const MNIST_LABELS_PATH = 'https://storage.googleapis.com/learnjs-data/model-builder/mnist_labels_uint8';
+        const NUM_CLASSES = 10;
+        const NUM_DATASET_ELEMENTS = 65000;
+        const NUM_TRAIN_ELEMENTS = 55000;
+        const IMAGE_SIZE = 784;
+
+        // Load images
+        const img = new Image();
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        const imgRequest = new Promise((resolve, reject) => {
+            img.crossOrigin = '';
+            img.onload = () => {
+                img.width = img.naturalWidth;
+                img.height = img.naturalHeight;
+
+                const datasetBytesBuffer = new ArrayBuffer(NUM_DATASET_ELEMENTS * IMAGE_SIZE * 4);
+                const chunkSize = 5000;
+                canvas.width = img.width;
+                canvas.height = chunkSize;
+
+                for (let i = 0; i < NUM_DATASET_ELEMENTS / chunkSize; i++) {
+                    const datasetBytesView = new Float32Array(
+                        datasetBytesBuffer, i * IMAGE_SIZE * chunkSize * 4,
+                        IMAGE_SIZE * chunkSize);
+                    ctx.drawImage(
+                        img, 0, i * chunkSize, img.width, chunkSize, 0, 0, img.width,
+                        chunkSize);
+
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+                    for (let j = 0; j < imageData.data.length / 4; j++) {
+                        datasetBytesView[j] = imageData.data[j * 4] / 255;
+                    }
+                }
+                resolve(new Float32Array(datasetBytesBuffer));
+            };
+            img.src = MNIST_IMAGES_SPRITE_PATH;
+        });
+
+        // Load labels
+        const labelsRequest = fetch(MNIST_LABELS_PATH);
+
+        const [imagesData, labelsResponse] = await Promise.all([imgRequest, labelsRequest]);
+        const labelsData = new Uint8Array(await labelsResponse.arrayBuffer());
+
+        // Create training tensors
+        const trainImages = imagesData.slice(0, IMAGE_SIZE * NUM_TRAIN_ELEMENTS);
+        const trainLabels = labelsData.slice(0, NUM_TRAIN_ELEMENTS);
+
+        const xs = tf.tensor2d(trainImages, [NUM_TRAIN_ELEMENTS, IMAGE_SIZE])
+            .reshape([NUM_TRAIN_ELEMENTS, 28, 28, 1]);
+        const ys = tf.oneHot(tf.tensor1d(trainLabels, 'int32'), NUM_CLASSES);
+
+        return {xs, ys};
+    }
+
+    async function trainModel() {
+        document.getElementById('status').innerText = "Training started...";
+        const {xs, ys} = await loadMnistData();
+
+        await model.fit(xs, ys, {
+            epochs: 3,
+            batchSize: 128,
+            validationSplit: 0.1,
+            callbacks: tfvis.show.fitCallbacks(
+                {name: 'Training Performance'},
+                ['loss', 'acc'],
+                {height: 200, callbacks: ['onEpochEnd']}
+            )
+        });
+
+        document.getElementById('status').innerText = "✅ Training complete!";
+    }
+
+    async function predictDrawing() {
+        // Get image from drawing canvas
+        const img = tf.browser.fromPixels(drawCanvas, 1)
+            .resizeNearestNeighbor([28, 28])
+            .toFloat()
+            .div(255.0)
+            .reshape([1, 28, 28, 1]);
+
+        const pred = model.predict(img);
+        const probabilities = await pred.data();
+        const predictedClass = await pred.argMax(1).data();
+
+        // Display prediction with confidence
+        const confidence = (probabilities[predictedClass[0]] * 100).toFixed(2);
+        document.getElementById('output').innerText =
+            `Predicted Digit: ${predictedClass[0]} (Confidence: ${confidence}%)`;
+
+        // Clean up tensors
+        img.dispose();
+        pred.dispose();
+    }
+
+    document.getElementById('train').addEventListener('click', trainModel);
+    document.getElementById('predict').addEventListener('click', predictDrawing);
+</script>
+</body>
+</html>

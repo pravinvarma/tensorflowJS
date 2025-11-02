@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TensorFlow.js Hello World</title>
+    <!-- Load TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0"></script>
+</head>
+<body>
+<h1>3x+1👋</h1>
+<p>Check the browser console for output.</p>
+
+<script>
+    // Step 1: Create tensors
+    const a = tf.scalar(5);
+    const b = tf.scalar(3);
+    const c = a.add(b);
+    c.print(); // prints "Tensor 8"
+    // Step 2: Create a model
+    const model = tf.sequential();
+    model.add(tf.layers.dense({units: 1, inputShape: [1]}));
+    // Step 3: Compile the model
+    model.compile({loss: 'meanSquaredError', optimizer: 'sgd'});
+
+    // Step 4: Prepare training data
+    const xs = tf.tensor2d([1, 2, 3, 4], [4, 1]);
+    const ys = tf.tensor2d([4, 7, 10, 13], [4, 1]);
+    // Step 5: Train model
+    async function train() {
+        await model.fit(xs, ys, {epochs: 250, callbacks: {onEpochEnd: (epoch, logs) => console.log(`Epoch ${epoch}: loss = ${logs.loss}`)}});
+        console.log("✅ Training complete!");
+        // Step 6: Predict a new value
+        const output = model.predict(tf.tensor2d([5], [1, 1]));
+        output.print(); // should be close to 16
+    }
+    train();
+
+
+</script>
+</body>
+</html>
