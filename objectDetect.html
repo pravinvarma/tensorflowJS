@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Object Detection - TensorFlow.js</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        #container {
+            position: relative;
+            display: inline-block;
+        }
+
+        #img {
+            max-width: 100%;
+            display: block;
+        }
+
+        .highlighter {
+            position: absolute;
+            border: 3px solid #00ff00;
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+
+        .label {
+            position: absolute;
+            background-color: #00ff00;
+            color: black;
+            padding: 5px;
+            font-weight: bold;
+            font-size: 14px;
+            pointer-events: none;
+        }
+
+        #status {
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h2>🔍 Object Detection with COCO-SSD</h2>
+    <p id="status">Loading model...</p>
+    <div id="container">
+        <input type="file" id="file" accept="image/*">
+        <img id="img" src="" crossorigin="anonymous"/>
+    </div>
+
+    <script>
+        let model = null;
+        let isModelLoading = false;
+
+        const img = document.getElementById('img');
+        const container = document.getElementById('container');
+        const status = document.getElementById('status');
+        const fileInput = document.getElementById('file');
+
+        // Load model on page load
+        async function loadModel() {
+            if (model || isModelLoading) return;
+
+            try {
+                isModelLoading = true;
+                status.innerText = '⏳ Loading COCO-SSD model... Please wait.';
+                status.style.color = 'blue';
+
+                model = await cocoSsd.load();
+                console.log('Model loaded successfully');
+
+                status.innerText = '✅ Model loaded! Please select an image to detect objects.';
+                status.style.color = 'green';
+                isModelLoading = false;
+            } catch (error) {
+                console.error('Model loading error:', error);
+                status.innerText = '❌ Error loading model: ' + error.message;
+                status.style.color = 'red';
+                isModelLoading = false;
+            }
+        }
+
+        // Detect objects in the image
+        async function detectObjects() {
+            if (!model) {
+                status.innerText = '⏳ Model not loaded yet. Please wait...';
+                status.style.color = 'orange';
+                await loadModel();
+            }
+
+            if (!img.src || img.src === '') {
+                status.innerText = 'Please select an image first';
+                status.style.color = 'orange';
+                return;
+            }
+
+            try {
+                status.innerText = '🔍 Detecting objects...';
+                status.style.color = 'blue';
+
+                // Clear previous detections
+                const oldBoxes = container.querySelectorAll('.highlighter, .label');
+                oldBoxes.forEach(box => box.remove());
+
+                // Detect objects
+                const predictions = await model.detect(img);
+                console.log('Predictions: ', predictions);
+
+                if (predictions.length === 0) {
+                    status.innerText = '⚠️ No objects detected';
+                    status.style.color = 'orange';
+                    return;
+                }
+
+                status.innerText = `✅ Found ${predictions.length} object(s)`;
+                status.style.color = 'green';
+
+                // Draw bounding boxes and labels
+                for (let n = 0; n < predictions.length; n++) {
+                    const prediction = predictions[n];
+
+                    // Create bounding box
+                    const highlighter = document.createElement('div');
+                    highlighter.className = 'highlighter';
+                    highlighter.style.left = prediction.bbox[0] + 'px';
+                    highlighter.style.top = prediction.bbox[1] + 'px';
+                    highlighter.style.width = prediction.bbox[2] + 'px';
+                    highlighter.style.height = prediction.bbox[3] + 'px';
+
+                    // Create label
+                    const label = document.createElement('div');
+                    label.className = 'label';
+                    label.innerText = prediction.class + ' - ' +
+                        Math.round(prediction.score * 100) + '%';
+                    label.style.left = prediction.bbox[0] + 'px';
+                    label.style.top = (prediction.bbox[1] - 25) + 'px';
+
+                    container.appendChild(highlighter);
+                    container.appendChild(label);
+                }
+            } catch (error) {
+                console.error('Detection error:', error);
+                status.innerText = '❌ Error during detection: ' + error.message;
+                status.style.color = 'red';
+            }
+        }
+
+        // Handle file selection
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                img.src = URL.createObjectURL(e.target.files[0]);
+                img.onload = detectObjects;
+                img.onerror = () => {
+                    status.innerText = '❌ Error loading image';
+                    status.style.color = 'red';
+                };
+            }
+        });
+
+        // Load model when page loads
+        window.addEventListener('load', loadModel);
+    </script>
+</body>
+</html>
