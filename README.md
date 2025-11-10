@@ -1,2 +1,2 @@
 ## Demo
-1. Object detect:  https://pravinvarma.com/demo/objectDetect.html 
+1. Object detect:  http://pravinvarma.com/demo/objectDetect.html 
